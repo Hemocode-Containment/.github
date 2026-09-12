@@ -24,8 +24,11 @@ jobs:
     name: CI
     if: (github.event_name != 'pull_request' && github.event_name != 'pull_request_target') || github.event.pull_request.head.repo.fork == false
     runs-on:
-      group: ${{ inputs.runner-group }}
-      labels: ${{ inputs.runner-label }}
+      # The trusted reusable workflow owns its execution boundary. Caller
+      # inputs are assertions checked below, never a way to select another
+      # self-hosted pool from an untrusted pull request.
+      group: trusted-ci
+      labels: tart-ubuntu24-arm64
     timeout-minutes: 15
     steps:
       - name: Enforce trigger contract

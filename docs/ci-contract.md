@@ -12,10 +12,11 @@ with a pinned JSON Schema validator before accepting changes.
 The public repository's own validator is intentionally a short standard hosted
 job. Public repositories receive unlimited free use of standard GitHub-hosted
 runners, and self-hosted jobs are free as well. Every reusable workflow in this
-contract is self-hosted-only: a private caller supplies the organization runner
-group and routing label, and an unavailable group queues the job rather than
-selecting hosted compute. Billing follows the caller workflow, so this boundary is
-what keeps private callers at zero hosted Actions minutes.
+contract is self-hosted-only: the workflow owns the approved `trusted-ci` group
+and `tart-ubuntu24-arm64` routing label, while caller inputs are checked as
+assertions. An unavailable group queues the job rather than selecting hosted
+compute. Billing follows the caller workflow, so this boundary is what keeps
+private callers at zero hosted Actions minutes.
 
 Private Copilot code-review infrastructure is a separate GitHub-managed workflow.
 It must use GitHub's supported self-hosted ARC setup or be disabled/manual when a
@@ -64,12 +65,14 @@ identity and accepts no secrets.
 
 ## Runner access and rollout
 
-Private callers supply the group, routing label, and complete label contract through
-repository or organization variables. Public validation uses GitHub-hosted Ubuntu
-runners. Runner groups must independently exclude public repositories; labels alone
-are not an authorization boundary. The group-plus-label object is used because
-GitHub's object form takes one routing label while the group policy provides the
-remaining trust boundary.
+Private callers pass the group, routing label, and complete label contract through
+their caller configuration so the reusable workflow can verify the declared
+contract. The called workflow still hard-codes the approved group and routing
+label, preventing a pull request from redirecting trusted execution. Public
+validation uses GitHub-hosted Ubuntu runners. Runner groups must independently
+exclude public repositories; labels alone are not an authorization boundary. The
+group-plus-label object is used because GitHub's object form takes one routing
+label while the group policy provides the remaining trust boundary.
 
 Observe actual emitted check names before updating required checks. Acceptance
 requires distinct fresh runners for cold and warm cache runs, failure and recovery,

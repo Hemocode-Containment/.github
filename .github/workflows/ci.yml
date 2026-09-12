@@ -55,10 +55,8 @@ jobs:
             .github/workflows/elixir-ci.yml \
             .github/workflows/infrastructure-ci.yml \
             .github/workflows/linked-issue.yml; do
-            group_line='      group: $'
-            group_line="${group_line}{{ inputs.runner-group }}"
-            label_line='      labels: $'
-            label_line="${label_line}{{ inputs.runner-label }}"
+            group_line='      group: trusted-ci'
+            label_line='      labels: tart-ubuntu24-arm64'
             test "$(grep -Fc '    runs-on:' "$workflow")" -eq 1
             grep -Fxq '    runs-on:' "$workflow"
             test "$(grep -Fc '      group:' "$workflow")" -eq 1

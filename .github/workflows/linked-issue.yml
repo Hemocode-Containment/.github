@@ -31,8 +31,10 @@ jobs:
     # contract only from pull_request_target when the linked-issue check is required.
     if: github.event_name == 'pull_request_target'
     runs-on:
-      group: ${{ inputs.runner-group }}
-      labels: ${{ inputs.runner-label }}
+      # Keep the trusted runner boundary in this workflow. Caller values below
+      # are assertions and cannot redirect a pull_request_target job elsewhere.
+      group: trusted-ci
+      labels: tart-ubuntu24-arm64
     timeout-minutes: 5
     steps:
       - name: Enforce trigger contract

@@ -10,9 +10,10 @@ base SHA, uses read-only metadata, and therefore still runs for fork PRs so the 
 requirement cannot be bypassed by opening a fork.
 
 The group is an access boundary, not a substitute for workflow review. Callers
-must select both the group and the routing label, while the complete label list
-(`self-hosted`, `Linux`, `ARM64`, and `tart-ubuntu24-arm64`) remains part of the
-declared contract. GitHub's group-plus-label form accepts one routing label; the
+declare the group and routing label, while the complete label list (`self-hosted`,
+`Linux`, `ARM64`, and `tart-ubuntu24-arm64`) remains part of the contract. The
+reusable workflow owns the approved group-plus-label selection and treats caller
+values as assertions. GitHub's group-plus-label form accepts one routing label; the
 group policy and runner registration provide the remaining boundary.
 
 Fresh guests receive no host directory, SSH-agent, or host Docker-socket access.
