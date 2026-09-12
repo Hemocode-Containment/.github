@@ -1,0 +1,85 @@
+name: Require linked issue
+
+on:
+  workflow_call:
+    inputs:
+      runner-group:
+        description: Organization runner group selected by the caller.
+        required: true
+        type: string
+      runner-label:
+        description: Single routing label matched inside the runner group.
+        required: true
+        type: string
+      runner-labels:
+        description: JSON array describing the complete runner contract.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  linked_issue:
+    # pull_request_target resolves the caller from the base branch. This job checks out
+    # that exact base SHA and uses only read-only metadata, so fork PRs are safe to enforce
+    # here even though untrusted PR-head workflows remain excluded from trusted-ci.
+    # Evaluate the event guard before GitHub evaluates runs-on. An invalid caller is
+    # therefore skipped without reserving a trusted runner; callers must still wire this
+    # contract only from pull_request_target when the linked-issue check is required.
+    if: github.event_name == 'pull_request_target'
+    runs-on:
+      group: ${{ inputs.runner-group }}
+      labels: ${{ inputs.runner-label }}
+    timeout-minutes: 5
+    steps:
+      - name: Enforce trigger contract
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" != "pull_request_target" ]; then
+            echo "::error::Require linked issue must be called from pull_request_target; got $GITHUB_EVENT_NAME."
+            exit 1
+          fi
+
+      - name: Checkout code
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Validate runner contract
+        env:
+          RUNNER_GROUP: ${{ inputs.runner-group }}
+          RUNNER_LABEL: ${{ inputs.runner-label }}
+          RUNNER_LABELS: ${{ inputs.runner-labels }}
+        if: github.event_name == 'pull_request_target'
+        run: |
+          set -euo pipefail
+          expected_labels='["self-hosted","Linux","ARM64","tart-ubuntu24-arm64"]'
+          test "$RUNNER_GROUP" = "trusted-ci"
+          test "$RUNNER_LABEL" = "tart-ubuntu24-arm64"
+          jq -e --argjson expected "$expected_labels" \
+            'type == "array" and (sort == ($expected | sort))' \
+            <<<"$RUNNER_LABELS" >/dev/null
+
+      - name: Verify linked-issue script exists at base SHA
+        if: github.event_name == 'pull_request_target'
+        run: |
+          if [ ! -x scripts/require-linked-issue.sh ]; then
+            echo "::error::scripts/require-linked-issue.sh is missing or not executable at the checked-out base SHA."
+            exit 1
+          fi
+
+      - name: Require a linked (closing) issue
+        if: github.event_name == 'pull_request_target'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: ./scripts/require-linked-issue.sh

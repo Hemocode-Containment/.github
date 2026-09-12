@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schemaVersion": 1,
+  "contractVersion": "2.3.0",
+  "requiredCheck": {
+    "workflow": "CI",
+    "job": "CI",
+    "context": "CI / CI"
+  },
+  "runner": {
+    "group": "trusted-ci",
+    "labels": ["self-hosted", "Linux", "ARM64", "tart-ubuntu24-arm64"],
+    "routingLabel": "tart-ubuntu24-arm64",
+    "imageOs": "ubuntu24-arm64",
+    "tools": ["bash", "docker", "jq", "python3", "shellcheck"]
+  },
+  "billing": {
+    "privateCallerRunner": "self-hosted",
+    "publicValidatorRunner": "github-hosted-standard",
+    "selfHostedUsageFree": true
+  },
+  "workflows": {
+    "elixir": ".github/workflows/elixir-ci.yml",
+    "infrastructure": ".github/workflows/infrastructure-ci.yml",
+    "linkedIssue": ".github/workflows/linked-issue.yml"
+  },
+  "callerRequirements": {
+    "pinReusableWorkflowToFullSha": true,
+    "keepTriggersPermissionsAndConcurrency": true,
+    "declareSecretsExplicitly": true,
+    "privateForkWorkflows": false
+  }
+}

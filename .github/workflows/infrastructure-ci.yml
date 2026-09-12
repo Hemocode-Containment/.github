@@ -1,0 +1,72 @@
+name: Infrastructure CI
+
+on:
+  workflow_call:
+    inputs:
+      runner-group:
+        description: Organization runner group selected by the caller.
+        required: true
+        type: string
+      runner-label:
+        description: Single routing label matched inside the runner group.
+        required: true
+        type: string
+      runner-labels:
+        description: JSON array describing the complete runner contract.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: CI
+    if: (github.event_name != 'pull_request' && github.event_name != 'pull_request_target') || github.event.pull_request.head.repo.fork == false
+    runs-on:
+      group: ${{ inputs.runner-group }}
+      labels: ${{ inputs.runner-label }}
+    timeout-minutes: 15
+    steps:
+      - name: Enforce trigger contract
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPO_FORK: ${{ github.event.pull_request.head.repo.fork || false }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request_target" ]; then
+            echo '::error::Infrastructure CI must not run from pull_request_target.'
+            exit 1
+          fi
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO_FORK" = "true" ]; then
+            echo '::error::Infrastructure CI does not run fork pull requests on trusted-ci.'
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Validate runner contract
+        env:
+          RUNNER_GROUP: ${{ inputs.runner-group }}
+          RUNNER_LABEL: ${{ inputs.runner-label }}
+          RUNNER_LABELS: ${{ inputs.runner-labels }}
+        run: |
+          set -euo pipefail
+          expected_labels='["self-hosted","Linux","ARM64","tart-ubuntu24-arm64"]'
+          test "$RUNNER_GROUP" = "trusted-ci"
+          test "$RUNNER_LABEL" = "tart-ubuntu24-arm64"
+          jq -e --argjson expected "$expected_labels" \
+            'type == "array" and (sort == ($expected | sort))' \
+            <<<"$RUNNER_LABELS" >/dev/null
+      - name: Record execution identity
+        env:
+          TESTED_SHA: ${{ github.sha }}
+          RUNNER_IDENTITY: ${{ runner.name }}
+          RUNNER_ARCHITECTURE: ${{ runner.arch }}
+        run: |
+          printf 'commit=%s\nrunner=%s\narchitecture=%s\n' "$TESTED_SHA" "$RUNNER_IDENTITY" "$RUNNER_ARCHITECTURE"
+      - name: Validate infrastructure
+        run: ./scripts/ci.sh --check
