@@ -1,0 +1,118 @@
+name: Elixir CI
+
+on:
+  workflow_call:
+    inputs:
+      elixir-version:
+        required: true
+        type: string
+      otp-version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  lint_and_format:
+    name: CI
+    if: (github.event_name != 'pull_request' && github.event_name != 'pull_request_target') || github.event.pull_request.head.repo.fork == false
+    runs-on:
+      group: trusted-ci
+      labels: hemocode-linux-arm64
+    timeout-minutes: 45
+    env:
+      ImageOS: ubuntu24-arm64
+
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_USER: postgres
+          POSTGRES_DB: containment_loop_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Enforce trigger contract
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPO_FORK: ${{ github.event.pull_request.head.repo.fork || false }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request_target" ]; then
+            echo '::error::Elixir CI must not run from pull_request_target.'
+            exit 1
+          fi
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO_FORK" = "true" ]; then
+            echo '::error::Elixir CI does not run fork pull requests on trusted-ci.'
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Elixir
+        id: beam
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1
+        with:
+          elixir-version: ${{ inputs.elixir-version }}
+          otp-version: ${{ inputs.otp-version }}
+
+      - name: Setup Node
+        id: node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: priv/pi-sdk-bridge/package.json
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-linux-arm64-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-linux-arm64-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-pnpm-store-
+
+      - name: Install root dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Retrieve Mix Dependencies Cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-linux-arm64-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-linux-arm64-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - name: Retrieve PLT Cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: plt-cache
+        with:
+          path: priv/plts
+          key: ${{ runner.os }}-linux-arm64-${{ runner.arch }}-plt-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-linux-arm64-${{ runner.arch }}-plt-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - name: Run CI checks
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+        run: ./scripts/ci.sh --check
