@@ -1,3 +1,9 @@
+# Keep the custom capability labels visible to actionlint without treating
+# provider names as part of the public runner contract.
 self-hosted-runner:
   labels:
+    - hemocode-linux-arm64
+    - hemocode-linux-x64
+    - hemocode-windows-x64
+    - hemocode-windows-arm64
     - tart-ubuntu24-arm64

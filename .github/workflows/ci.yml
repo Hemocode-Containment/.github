@@ -48,21 +48,25 @@ jobs:
       - name: Enforce private billing boundary
         run: |
           set -euo pipefail
-          # Each reusable workflow must use exactly one group-plus-label object.
-          # Requiring these complete lines rejects scalar, array, hosted-label,
-          # and expression-shape changes before a caller can consume them.
+          # Each reusable workflow owns exactly one approved group-plus-profile
+          # object. Requiring these complete lines rejects scalar, array,
+          # hosted-label, expression, and caller-selected routing changes.
           for workflow in \
             .github/workflows/elixir-ci.yml \
             .github/workflows/infrastructure-ci.yml \
             .github/workflows/linked-issue.yml; do
             group_line='      group: trusted-ci'
-            label_line='      labels: tart-ubuntu24-arm64'
+            label_line='      labels: hemocode-linux-arm64'
             test "$(grep -Fc '    runs-on:' "$workflow")" -eq 1
             grep -Fxq '    runs-on:' "$workflow"
             test "$(grep -Fc '      group:' "$workflow")" -eq 1
             test "$(grep -Fc '      labels:' "$workflow")" -eq 1
             grep -Fxq "$group_line" "$workflow"
             grep -Fxq "$label_line" "$workflow"
+            if grep -Eq 'runner-group|runner-label|image-os' "$workflow"; then
+              echo "caller-selected runner inputs are not allowed in $workflow"
+              exit 1
+            fi
           done
           # The linked-issue contract is pull_request_target-only. Keep its guard at
           # job level so invalid callers cannot allocate trusted-ci before failing.

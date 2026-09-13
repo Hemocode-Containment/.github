@@ -3,22 +3,6 @@ name: Elixir CI
 on:
   workflow_call:
     inputs:
-      runner-group:
-        description: Organization runner group selected by the caller.
-        required: true
-        type: string
-      runner-label:
-        description: Single routing label matched inside the runner group.
-        required: true
-        type: string
-      runner-labels:
-        description: JSON array describing the complete runner contract.
-        required: true
-        type: string
-      image-os:
-        description: setup-beam image identity, including Ubuntu release and architecture.
-        required: true
-        type: string
       elixir-version:
         required: true
         type: string
@@ -34,14 +18,11 @@ jobs:
     name: CI
     if: (github.event_name != 'pull_request' && github.event_name != 'pull_request_target') || github.event.pull_request.head.repo.fork == false
     runs-on:
-      # The trusted reusable workflow owns its execution boundary. Caller
-      # inputs are assertions checked below, never a way to select another
-      # self-hosted pool from an untrusted pull request.
       group: trusted-ci
-      labels: tart-ubuntu24-arm64
+      labels: hemocode-linux-arm64
     timeout-minutes: 45
     env:
-      ImageOS: ${{ inputs.image-os }}
+      ImageOS: ubuntu24-arm64
 
     services:
       postgres:
@@ -80,21 +61,6 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Validate runner contract
-        env:
-          RUNNER_GROUP: ${{ inputs.runner-group }}
-          RUNNER_LABEL: ${{ inputs.runner-label }}
-          RUNNER_LABELS: ${{ inputs.runner-labels }}
-        run: |
-          set -euo pipefail
-          expected_labels='["self-hosted","Linux","ARM64","tart-ubuntu24-arm64"]'
-          test "$RUNNER_GROUP" = "trusted-ci"
-          test "$RUNNER_LABEL" = "tart-ubuntu24-arm64"
-          test "$ImageOS" = "ubuntu24-arm64"
-          jq -e --argjson expected "$expected_labels" \
-            'type == "array" and (sort == ($expected | sort))' \
-            <<<"$RUNNER_LABELS" >/dev/null
-
       - name: Setup Elixir
         id: beam
         uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1
@@ -119,9 +85,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-${{ inputs.image-os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-linux-arm64-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-${{ inputs.image-os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-pnpm-store-
+            ${{ runner.os }}-linux-arm64-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-pnpm-store-
 
       - name: Install root dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -133,18 +99,18 @@ jobs:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-${{ inputs.image-os }}-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
+          key: ${{ runner.os }}-linux-arm64-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ inputs.image-os }}-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+            ${{ runner.os }}-linux-arm64-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
 
       - name: Retrieve PLT Cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: plt-cache
         with:
           path: priv/plts
-          key: ${{ runner.os }}-${{ inputs.image-os }}-${{ runner.arch }}-plt-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
+          key: ${{ runner.os }}-linux-arm64-${{ runner.arch }}-plt-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ inputs.image-os }}-${{ runner.arch }}-plt-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+            ${{ runner.os }}-linux-arm64-${{ runner.arch }}-plt-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
 
       - name: Run CI checks
         env:

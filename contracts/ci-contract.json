@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
-  "contractVersion": "2.3.0",
+  "contractVersion": "3.0.0",
   "requiredCheck": {
     "workflow": "CI",
     "job": "CI",
@@ -9,11 +9,20 @@
   },
   "runner": {
     "group": "trusted-ci",
-    "labels": ["self-hosted", "Linux", "ARM64", "tart-ubuntu24-arm64"],
-    "routingLabel": "tart-ubuntu24-arm64",
+    "profile": "linux-arm64",
+    "labels": ["self-hosted", "Linux", "ARM64", "hemocode-linux-arm64", "tart-ubuntu24-arm64"],
+    "routingLabel": "hemocode-linux-arm64",
+    "legacyRoutingLabels": ["tart-ubuntu24-arm64"],
     "imageOs": "ubuntu24-arm64",
+    "provider": "provider-neutral",
     "tools": ["bash", "docker", "jq", "python3", "shellcheck"]
   },
+  "profileCatalog": [
+    {"id": "linux-arm64", "os": "linux", "arch": "arm64", "routingLabel": "hemocode-linux-arm64", "status": "active"},
+    {"id": "linux-x64", "os": "linux", "arch": "x64", "routingLabel": "hemocode-linux-x64", "status": "planned"},
+    {"id": "windows-x64", "os": "windows", "arch": "x64", "routingLabel": "hemocode-windows-x64", "status": "planned"},
+    {"id": "windows-arm64", "os": "windows", "arch": "arm64", "routingLabel": "hemocode-windows-arm64", "status": "planned"}
+  ],
   "billing": {
     "privateCallerRunner": "self-hosted",
     "publicValidatorRunner": "github-hosted-standard",
@@ -28,6 +37,7 @@
     "pinReusableWorkflowToFullSha": true,
     "keepTriggersPermissionsAndConcurrency": true,
     "declareSecretsExplicitly": true,
-    "privateForkWorkflows": false
+    "privateForkWorkflows": false,
+    "runnerSelectionOwnedBySharedWorkflow": true
   }
 }

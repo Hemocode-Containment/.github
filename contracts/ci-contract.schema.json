@@ -4,7 +4,7 @@
   "title": "Hemocode shared CI contract",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "schemaVersion", "contractVersion", "requiredCheck", "runner", "billing", "workflows", "callerRequirements"],
+  "required": ["$schema", "schemaVersion", "contractVersion", "requiredCheck", "runner", "profileCatalog", "billing", "workflows", "callerRequirements"],
   "properties": {
     "$schema": { "const": "https://json-schema.org/draft/2020-12/schema" },
     "schemaVersion": { "const": 1 },
@@ -22,26 +22,45 @@
     "runner": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["group", "labels", "routingLabel", "imageOs", "tools"],
+      "required": ["group", "profile", "labels", "routingLabel", "legacyRoutingLabels", "imageOs", "provider", "tools"],
       "properties": {
         "group": { "const": "trusted-ci" },
+        "profile": { "const": "linux-arm64" },
         "labels": {
           "type": "array",
           "uniqueItems": true,
-          "minItems": 4,
-          "maxItems": 4,
+          "minItems": 5,
+          "maxItems": 5,
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
           "allOf": [
             { "contains": { "const": "self-hosted" } },
             { "contains": { "const": "Linux" } },
             { "contains": { "const": "ARM64" } },
+            { "contains": { "const": "hemocode-linux-arm64" } },
             { "contains": { "const": "tart-ubuntu24-arm64" } }
-          ],
-          "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$" }
+          ]
         },
-        "routingLabel": { "const": "tart-ubuntu24-arm64" },
+        "routingLabel": { "const": "hemocode-linux-arm64" },
+        "legacyRoutingLabels": { "const": ["tart-ubuntu24-arm64"] },
         "imageOs": { "const": "ubuntu24-arm64" },
-        "tools": {
-          "const": ["bash", "docker", "jq", "python3", "shellcheck"]
+        "provider": { "const": "provider-neutral" },
+        "tools": { "const": ["bash", "docker", "jq", "python3", "shellcheck"] }
+      }
+    },
+    "profileCatalog": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "os", "arch", "routingLabel", "status"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "os": { "enum": ["linux", "windows", "macos"] },
+          "arch": { "enum": ["x64", "arm64"] },
+          "routingLabel": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
+          "status": { "enum": ["active", "planned"] }
         }
       }
     },
@@ -68,12 +87,13 @@
     "callerRequirements": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["pinReusableWorkflowToFullSha", "keepTriggersPermissionsAndConcurrency", "declareSecretsExplicitly", "privateForkWorkflows"],
+      "required": ["pinReusableWorkflowToFullSha", "keepTriggersPermissionsAndConcurrency", "declareSecretsExplicitly", "privateForkWorkflows", "runnerSelectionOwnedBySharedWorkflow"],
       "properties": {
         "pinReusableWorkflowToFullSha": { "const": true },
         "keepTriggersPermissionsAndConcurrency": { "const": true },
         "declareSecretsExplicitly": { "const": true },
-        "privateForkWorkflows": { "const": false }
+        "privateForkWorkflows": { "const": false },
+        "runnerSelectionOwnedBySharedWorkflow": { "const": true }
       }
     }
   }
