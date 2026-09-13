@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    # Keep the public validator's status context identical to the reusable
+    # caller contract required by the organization ruleset.
+    name: CI / CI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned workflow validator
+        run: |
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          # actionlint v1.7.7 publishes the Linux x86_64 archive as linux_amd64.
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz \
+            --output "$archive"
+          printf '023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  %s\n' "$archive" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/workflow-validator"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/workflow-validator" actionlint
+          echo "$RUNNER_TEMP/workflow-validator" >> "$GITHUB_PATH"
+      - name: Validate workflows
+        run: actionlint
+      - name: Validate public CI contract
+        run: |
+          set -euo pipefail
+          npx --yes --package=ajv-cli@5.0.0 ajv validate \
+            --spec=draft2020 \
+            -s contracts/ci-contract.schema.json \
+            -d contracts/ci-contract.json
+      - name: Enforce private billing boundary
+        run: |
+          set -euo pipefail
+          # Each reusable workflow owns exactly one approved group-plus-profile
+          # object. Requiring these complete lines rejects scalar, array,
+          # hosted-label, expression, and caller-selected routing changes.
+          for workflow in \
+            .github/workflows/elixir-ci.yml \
+            .github/workflows/infrastructure-ci.yml \
+            .github/workflows/linked-issue.yml; do
+            group_line='      group: trusted-ci'
+            label_line='      labels: hemocode-linux-arm64'
+            test "$(grep -Fc '    runs-on:' "$workflow")" -eq 1
+            grep -Fxq '    runs-on:' "$workflow"
+            test "$(grep -Fc '      group:' "$workflow")" -eq 1
+            test "$(grep -Fc '      labels:' "$workflow")" -eq 1
+            grep -Fxq "$group_line" "$workflow"
+            grep -Fxq "$label_line" "$workflow"
+            if grep -Eq 'runner-group|runner-label|image-os' "$workflow"; then
+              echo "caller-selected runner inputs are not allowed in $workflow"
+              exit 1
+            fi
+          done
+          # The linked-issue contract is pull_request_target-only. Keep its guard at
+          # job level so invalid callers cannot allocate trusted-ci before failing.
+          grep -Fxq "    if: github.event_name == 'pull_request_target'" \
+            .github/workflows/linked-issue.yml
