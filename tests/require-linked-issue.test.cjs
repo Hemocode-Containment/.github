@@ -26,7 +26,7 @@ test('manual and closing issue relationships pass without body parsing or author
   for (const id of ['manual-issue', 'closing-issue']) {
     const result = await check([page([id])]);
     assert.equal(result.failures.length, 0);
-    assert.match(result.calls[0].query, /includeUserLinkedIssues:true/);
+    assert.match(result.calls[0].query, /userLinkedOnly:false/);
     assert.deepEqual(result.calls[0].args, {owner: 'example', repo: 'project', number: 17, cursor: null});
     assert.doesNotMatch(script, /author|\.body|Bot|fetch\(/);
   }
@@ -73,4 +73,9 @@ test('workflow has no checkout, inherited secrets, writes or mutable action refe
   assert.doesNotMatch(workflow, /actions\/checkout|secrets: inherit|: write/);
   assert.match(workflow, /actions\/github-script@[a-f0-9]{40}/);
   assert.match(workflow, /name: linked-issue/);
+});
+
+test('query uses only documented issue connection argument names', () => {
+  const args = script.match(/closingIssuesReferences\(([^)]*)\)/)[1];
+  assert.deepEqual([...args.matchAll(/([A-Za-z]+):/g)].map(x => x[1]).sort(), ['after', 'first', 'userLinkedOnly']);
 });

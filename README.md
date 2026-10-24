@@ -1,7 +1,7 @@
 # Shared issue relationship check
 
 The reusable `.github/workflows/require-linked-issue.yml` checks fresh GitHub
-`closingIssuesReferences(includeUserLinkedIssues: true)` data. At least one
+`closingIssuesReferences(userLinkedOnly: false)` data. At least one
 visible real issue relationship is required, including a manual Development link.
 A plain text mention is insufficient. There is no extra body keyword requirement,
 no author/bot exemption and no same-repository restriction. Cross-repository links

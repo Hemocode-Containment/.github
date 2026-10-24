@@ -33,7 +33,7 @@ jobs:
             const query = `query($owner:String!,$repo:String!,$number:Int!,$cursor:String) {
               repository(owner:$owner,name:$repo) {
                 pullRequest(number:$number) {
-                  closingIssuesReferences(first:100,after:$cursor,includeUserLinkedIssues:true) {
+                  closingIssuesReferences(first:100,after:$cursor,userLinkedOnly:false) {
                     nodes { id }
                     pageInfo { hasNextPage endCursor }
                   }
