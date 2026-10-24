@@ -1,0 +1,27 @@
+name: Require linked issue
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Pull request number whose current issue relationships should be checked
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+concurrency:
+  group: linked-issue-${{ github.event.pull_request.number || inputs.pull_request_number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  linked-issue:
+    name: Require linked issue
+    uses: Hemocode-Containment/.github/.github/workflows/require-linked-issue.yml@3050c9925c74c317d3e17c8bd72a369ffc03d2e5
+    with:
+      pull-request-number: ${{ github.event.pull_request.number || inputs.pull_request_number || 0 }}
