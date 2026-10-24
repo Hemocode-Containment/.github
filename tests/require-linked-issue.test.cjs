@@ -79,3 +79,9 @@ test('query uses only documented issue connection argument names', () => {
   const args = script.match(/closingIssuesReferences\(([^)]*)\)/)[1];
   assert.deepEqual([...args.matchAll(/([A-Za-z]+):/g)].map(x => x[1]).sort(), ['after', 'first', 'userLinkedOnly']);
 });
+
+test('runner selection defaults to hosted and is controlled only by the caller', () => {
+  assert.match(workflow, /runner-label:[\s\S]*?type: string[\s\S]*?default: ubuntu-latest/);
+  assert.match(workflow, /runs-on: \$\{\{ inputs.runner-label \}\}/);
+  assert.doesNotMatch(script, /runner-label/);
+});
