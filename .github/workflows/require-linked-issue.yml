@@ -1,0 +1,72 @@
+name: Require linked issue
+
+on:
+  workflow_call:
+    inputs:
+      pull-request-number:
+        description: Pull request number to check using fresh GitHub relationships
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  linked-issue:
+    name: linked-issue
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require a real issue relationship
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PR_NUMBER: ${{ inputs.pull-request-number }}
+        with:
+          script: |
+            const number = Number(process.env.PR_NUMBER);
+            if (!Number.isSafeInteger(number) || number < 1) {
+              core.setFailed('A positive pull request number is required.');
+              return;
+            }
+            const query = `query($owner:String!,$repo:String!,$number:Int!,$cursor:String) {
+              repository(owner:$owner,name:$repo) {
+                pullRequest(number:$number) {
+                  closingIssuesReferences(first:100,after:$cursor,includeUserLinkedIssues:true) {
+                    nodes { id }
+                    pageInfo { hasNextPage endCursor }
+                  }
+                }
+              }
+            }`;
+            try {
+              let cursor = null;
+              let found = false;
+              const seen = new Set();
+              do {
+                const data = await github.graphql(query, {
+                  owner: context.repo.owner, repo: context.repo.repo, number, cursor
+                });
+                const connection = data?.repository?.pullRequest?.closingIssuesReferences;
+                if (!connection || !Array.isArray(connection.nodes) ||
+                    typeof connection.pageInfo?.hasNextPage !== 'boolean' ||
+                    connection.nodes.some(node => !node || typeof node.id !== 'string' || !node.id)) {
+                  throw new Error('Invalid issue relationship response');
+                }
+                found ||= connection.nodes.length > 0;
+                if (!connection.pageInfo.hasNextPage) break;
+                cursor = connection.pageInfo.endCursor;
+                if (typeof cursor !== 'string' || !cursor || seen.has(cursor)) {
+                  throw new Error('Invalid issue relationship pagination');
+                }
+                seen.add(cursor);
+              } while (true);
+              if (!found) {
+                core.setFailed('Attach at least one real GitHub issue to this pull request, then explicitly re-run this check. Plain text mentions do not count.');
+                return;
+              }
+              core.info('At least one visible GitHub issue relationship was verified.');
+            } catch {
+              core.setFailed('Could not verify issue relationships with the current repository token. Check repository access and explicitly re-run; no additional access is granted by this workflow.');
+            }
